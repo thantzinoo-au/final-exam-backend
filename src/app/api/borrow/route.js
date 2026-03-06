@@ -70,7 +70,7 @@ export async function POST(req) {
     const client = await getClientPromise();
     const db = client.db("wad-final");
 
-    const book = await db.collection("book").findOne({ _id: bookOid, status: "ACTIVE" });
+    const book = await db.collection("book").findOne({ _id: bookOid, status: "ACTIVE", quantity: { $gt: 0 } });
     const requestStatus = book ? "INIT" : "CLOSE-NO-AVAILABLE-BOOK";
 
     const borrowRequest = {
@@ -82,6 +82,15 @@ export async function POST(req) {
     };
 
     const result = await db.collection("borrow").insertOne(borrowRequest);
+
+    // Decrement book quantity when a valid request is created
+    if (requestStatus === "INIT") {
+      await db.collection("book").updateOne(
+        { _id: bookOid },
+        { $inc: { quantity: -1 } }
+      );
+    }
+
     return NextResponse.json(
       { id: result.insertedId, ...borrowRequest },
       { status: 201, headers: corsHeaders }
